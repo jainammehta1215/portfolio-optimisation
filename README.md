@@ -1,5 +1,9 @@
 # Portfolio Optimisation: Mean-Variance, Black-Litterman and Robust Methods
 
+**Asset-allocation track · Project 3 of 6** · the allocation engine of the series · see
+[Project 1, Risk & Performance Analytics](https://github.com/jainammehta1215/portfolio-risk-analytics)
+for reporting on any portfolio this produces
+
 A research-grade Python framework that builds the classical Markowitz optimiser, demonstrates
 quantitatively why it fails, applies the fixes used in institutional practice, and tests
 everything out of sample with transaction costs against the benchmarks that are actually hard
@@ -41,7 +45,10 @@ embarrassment.
 * **Manager due diligence** uses the instability experiment to ask whether a manager's
   allocation would survive a plausible change in their own return forecasts.
 * **Risk teams** use the risk-contribution decomposition and turnover accounting to check
-  that a strategy's realised behaviour matches its mandate.
+  that a strategy's realised behaviour matches its mandate. The full monthly reporting pack for
+  any set of weights produced here (drawdown episodes, stress scenarios, calm-vs-stress
+  correlation, HTML dashboard) is
+  [Project 1](https://github.com/jainammehta1215/portfolio-risk-analytics) in this track.
 * **Anyone building a systematic strategy** needs the backtest timing convention here
   (estimate on data to the close, trade at the close, drift until next rebalance, measure
   turnover against drifted holdings) to avoid the lookahead and cost errors that make retail
@@ -325,6 +332,21 @@ What you must check yourself:
   1/N because two semiconductor names dominated the decade. That is not evidence the
   optimiser works; it is evidence the period had a winner. Run several universes and start
   dates before drawing conclusions.
+
+## Asset-allocation track
+
+Six projects that build one capability each and share a reporting layer. Completed ones are linked.
+
+| # | Project | What it adds |
+|---|---|---|
+| 1 | [Portfolio Risk & Performance Analytics Dashboard](https://github.com/jainammehta1215/portfolio-risk-analytics) | Where the risk sits: Euler decomposition, benchmark-relative statistics, stress scenarios, HTML dashboard |
+| 2 | Multi-Factor Exposure Analyser (Fama-French) | Why assets co-move: factor betas, alpha after factor adjustment, style drift |
+| 3 | **Portfolio Optimisation: Mean-Variance, Black-Litterman and Robust Methods** (this repo) | What weights to hold: Markowitz and its fixes, tested out of sample net of costs |
+| 4 | Risk Parity and Hierarchical Risk Parity | Allocating by risk instead of capital; clustering instead of matrix inversion |
+| 5 | Macro Nowcasting and Recession Probability | The regime the allocation lives in: yield-curve probit, dynamic factor model, real-time vintages |
+| 6 | Yield Curve Construction and Fixed-Income Immunisation | The rates side: bootstrapping, Nelson-Siegel, key-rate durations, liability matching |
+
+A master repository will consolidate all six with a shared core once the track is complete.
 
 ## References
 

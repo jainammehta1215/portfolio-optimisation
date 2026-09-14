@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "portopt"
+version = "1.0.0"
+description = "Portfolio optimisation: mean-variance, Black-Litterman and robust methods with a cost-aware walk-forward backtest"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.26", "pandas>=2.1", "scipy>=1.11", "scikit-learn>=1.3",
+                "cvxpy>=1.4", "matplotlib>=3.8", "yfinance>=0.2.40", "requests>=2.31", "tqdm>=4.66"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4", "nbformat>=5.9", "nbconvert>=7.10", "ipykernel>=6.25"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

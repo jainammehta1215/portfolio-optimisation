@@ -141,6 +141,15 @@ pd.set_option("display.width", 200); pd.set_option("display.max_columns", 40); p
 print("portopt", portopt.__version__, "| universe:", len(UNIVERSE), "assets |", CONSTRAINTS, "|", MODEL.lookback_days, "day lookback")
 """)
 
+md(r"""
+> **Using your own companies:** edit `UNIVERSE` (and optionally `SECTOR_MAP`) in the `config.py`
+> cell above and re-run from there. Non-US symbols need Yahoo's exchange suffix (`RELIANCE.NS`,
+> `HSBA.L`, `7203.T`). The loader drops cross-exchange holidays, converts every price to USD
+> through Yahoo FX crosses, and fetches shares outstanding and sectors automatically. Tickers
+> listed after `DataConfig.start` are dropped with a message; move `start` later to keep them.
+> With fewer than 5 names or 3 sectors, relax `max_weight` / `max_sector_weight`.
+""")
+
 # --------------------------------------------------------------------------- #
 md(r"""
 ## 3. Data collection and quality checks

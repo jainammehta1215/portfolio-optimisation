@@ -290,6 +290,42 @@ jupyter nbconvert --to notebook --execute notebooks/portfolio_optimisation.ipynb
 
 Or open the notebook in Colab and run all cells; it writes `src/portopt/` itself.
 
+## Using your own companies
+
+The universe is a list in `src/portopt/config.py` (or the `config.py` cell in the notebook). Any
+symbol Yahoo Finance carries works, including non-US listings with their exchange suffix:
+`RELIANCE.NS` (NSE India), `HSBA.L` (London), `7203.T` (Tokyo), `EMAAR.AE` (Dubai), `SAP.DE`
+(Xetra). Look symbols up at finance.yahoo.com if unsure.
+
+```python
+UNIVERSE = ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "HSBA.L", "7203.T", "ASML", "TSM"]
+SECTOR_MAP = {}          # optional: anything missing is looked up on Yahoo automatically
+```
+
+What the pipeline handles for you:
+
+* **Different exchange calendars.** Days on which fewer than half the universe traded are
+  dropped (returns compound correctly across the gap); single-exchange holidays are
+  forward-filled.
+* **Different currencies.** Every price is converted to `DataConfig.base_currency` (USD by
+  default) through Yahoo FX crosses before returns, market caps or anything else is computed.
+  Pence and cents quotes are scaled to their major unit first.
+* **Shares outstanding and sectors** are fetched per ticker; if Yahoo has no shares figure, add
+  it to `FALLBACK_SHARES_OUTSTANDING_BN`.
+
+What you must check yourself:
+
+* **History.** A ticker listed after `DataConfig.start` is dropped with a message telling you
+  its first price date; move `start` later to keep it.
+* **Constraint feasibility.** The 20% position cap needs at least 5 names; the 35% sector cap
+  needs at least 3 sectors. With fewer, raise the caps or set them to `None`.
+* **Risk-free rate.** The default is the US 3-month T-bill, which is right for a USD base
+  currency. For another base, change `fred_series` (or supply your own series).
+* **Results are universe-specific.** On a 12-name India/UK/Japan/US list the optimisers beat
+  1/N because two semiconductor names dominated the decade. That is not evidence the
+  optimiser works; it is evidence the period had a winner. Run several universes and start
+  dates before drawing conclusions.
+
 ## References
 
 Black & Litterman (1992) *Global Portfolio Optimization* · He & Litterman (1999) *The

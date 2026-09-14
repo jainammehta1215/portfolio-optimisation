@@ -122,16 +122,32 @@ def clean_prices(prices: pd.DataFrame,
     if px.index.duplicated().any():
         raise ValueError("Duplicated dates in price index")
 
+    # 1. Cross-exchange calendars: drop days on which most of the universe was
+    #    closed (e.g. an Indian holiday in a mixed India/US list). Dropping a
+    #    row is safe for returns because pct_change compounds across the gap;
+    #    forward-filling instead would create artificial zero-return days.
+    row_cov = px.notna().mean(axis=1)
+    dropped_days = int((row_cov < 0.5).sum())
+    if dropped_days:
+        issues["_calendar"] = f"dropped {dropped_days} days when <50% of tickers traded"
+    px = px[row_cov >= 0.5]
+
+    # 2. Fill the remaining isolated gaps (single-exchange holidays, bad ticks).
+    gap_counts = px.isna().sum()
+    px = px.ffill(limit=5)
+
+    # 3. Tickers with insufficient history (listed after `start`, delisted, etc).
     coverage = px.notna().mean()
     thin = coverage[coverage < cfg.min_history_fraction]
     for t, c in thin.items():
-        issues[t] = f"dropped: only {c:.1%} of dates have a price"
+        first = px[t].first_valid_index()
+        issues[t] = (f"dropped: only {c:.1%} of dates have a price"
+                     + (f" (first price {first.date()}; move DataConfig.start later to keep it)" if first is not None else ""))
     px = px.drop(columns=thin.index)
+    for t, n in gap_counts.reindex(px.columns).items():
+        if n > 0:
+            issues[t] = issues.get(t, "") + f"filled {int(n)} missing price(s)"
 
-    gap_counts = px.isna().sum()
-    for t, n in gap_counts[gap_counts > 0].items():
-        issues[t] = issues.get(t, "") + f" filled {int(n)} missing price(s)"
-    px = px.ffill(limit=5)
     px = px.dropna(how="any")          # remove leading NaNs / anything unfillable
 
     if (px <= 0).any().any():
@@ -150,6 +166,74 @@ def compute_returns(prices: pd.DataFrame) -> pd.DataFrame:
         n = int(extreme.sum().sum())
         logger.warning("%d daily returns exceed +/-50%%; inspect before trusting results", n)
     return rets
+
+
+# --------------------------------------------------------------------------- #
+# Currency conversion
+# --------------------------------------------------------------------------- #
+def fetch_currencies(tickers: Iterable[str]) -> pd.Series:
+    """Quote currency per ticker from yfinance (e.g. USD, INR, JPY, GBp)."""
+    out: Dict[str, str] = {}
+    try:
+        import yfinance as yf
+        for t in tickers:
+            try:
+                out[t] = str(yf.Ticker(t).fast_info.get("currency") or "USD")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("currency lookup failed for %s; assuming USD: %s", t, exc)
+                out[t] = "USD"
+    except ImportError:
+        out = {t: "USD" for t in tickers}
+    return pd.Series(out, name="currency")
+
+
+def convert_to_base_currency(prices: pd.DataFrame, base: str = "USD",
+                             currencies: Optional[pd.Series] = None,
+                             cfg: DataConfig = DATA) -> Tuple[pd.DataFrame, Dict[str, str]]:
+    """
+    Convert every column to `base` using Yahoo FX crosses (e.g. INRUSD=X).
+
+    GBp (pence) and ZAc (cents) are scaled to their major unit first. FX
+    series are forward-filled onto the price calendar. Returns the converted
+    frame and a log of what was converted. No-op for single-currency
+    universes already quoted in `base`.
+    """
+    log: Dict[str, str] = {}
+    cur = currencies if currencies is not None else fetch_currencies(prices.columns)
+    cur = cur.reindex(prices.columns).fillna(base)
+    px = prices.copy()
+
+    minor = {"GBp": ("GBP", 100.0), "ZAc": ("ZAR", 100.0), "ILA": ("ILS", 100.0)}
+    for t, c in cur.items():
+        if c in minor:
+            major, div = minor[c]
+            px[t] = px[t] / div
+            cur[t] = major
+
+    needed = sorted(set(cur) - {base})
+    if not needed:
+        return px, log
+
+    import yfinance as yf
+    end = cfg.end or pd.Timestamp.today().strftime("%Y-%m-%d")
+    for c in needed:
+        pair = f"{c}{base}=X"
+        def _dl(pair=pair):
+            fx = yf.download(pair, start=cfg.start, end=end, auto_adjust=True, progress=False)
+            if fx.empty:
+                raise RuntimeError(f"no FX data for {pair}")
+            fx = fx["Close"]
+            return fx.iloc[:, 0] if isinstance(fx, pd.DataFrame) else fx
+        try:
+            fx = _retry(_dl, label=f"FX {pair}")
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"Could not download {pair}; cannot express {c} assets in {base}") from exc
+        fx.index = pd.to_datetime(fx.index).tz_localize(None)
+        fx = fx.reindex(px.index.union(fx.index)).ffill().reindex(px.index)
+        cols = [t for t, cc in cur.items() if cc == c]
+        px[cols] = px[cols].mul(fx, axis=0)
+        log[c] = f"{len(cols)} ticker(s) converted via {pair}"
+    return px, log
 
 
 # --------------------------------------------------------------------------- #
@@ -200,8 +284,15 @@ def load_shares_outstanding(tickers: Iterable[str]) -> pd.Series:
         import yfinance as yf
         for t in tickers:
             try:
-                fi = yf.Ticker(t).fast_info
+                tk = yf.Ticker(t)
+                fi = tk.fast_info
                 shares = fi.get("shares") or fi.get("sharesOutstanding")
+                if not shares:                      # derive from market cap / price
+                    mcap, last = fi.get("marketCap"), fi.get("lastPrice")
+                    if mcap and last:
+                        shares = mcap / last
+                if not shares:                      # slower .info endpoint as a last resort
+                    shares = tk.info.get("sharesOutstanding")
                 if shares and shares > 0:
                     out[t] = float(shares)
                     continue
@@ -214,7 +305,9 @@ def load_shares_outstanding(tickers: Iterable[str]) -> pd.Series:
     s = pd.Series(out, name="shares_outstanding")
     if s.isna().any():
         missing = s.index[s.isna()].tolist()
-        raise ValueError(f"No shares outstanding available for {missing}")
+        raise ValueError(
+            f"No shares outstanding available for {missing}. Add them to "
+            "config.FALLBACK_SHARES_OUTSTANDING_BN (in billions) or drop the ticker.")
     return s
 
 
@@ -240,15 +333,39 @@ def market_weights_at(caps: pd.DataFrame, date: pd.Timestamp) -> pd.Series:
 # --------------------------------------------------------------------------- #
 # Sectors
 # --------------------------------------------------------------------------- #
+def fetch_sectors(tickers: Iterable[str]) -> Dict[str, str]:
+    """Sector per ticker from yfinance's .info endpoint (slow; one call per ticker)."""
+    found: Dict[str, str] = {}
+    try:
+        import yfinance as yf
+        for t in tickers:
+            try:
+                sec = yf.Ticker(t).info.get("sector")
+                if sec:
+                    found[t] = str(sec)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("sector lookup failed for %s: %s", t, exc)
+    except ImportError:
+        pass
+    return found
+
+
 def sector_matrix(tickers: List[str],
-                  sector_map: Dict[str, str] = SECTOR_MAP) -> pd.DataFrame:
+                  sector_map: Dict[str, str] = SECTOR_MAP,
+                  auto_lookup: bool = True) -> pd.DataFrame:
     """
     Binary (sectors x assets) matrix A such that A @ w = sector weights.
-    Tickers missing from the map are assigned to 'Other' with a warning.
+
+    Tickers missing from `sector_map` are looked up on Yahoo Finance when
+    `auto_lookup` is True; anything still unknown goes to 'Other' with a
+    warning. With only one or two sectors present the default 35% sector
+    cap is infeasible, so raise the cap or turn it off in that case.
     """
     rows = {}
+    missing = [t for t in tickers if t not in sector_map]
+    fetched = fetch_sectors(missing) if (missing and auto_lookup) else {}
     for t in tickers:
-        sec = sector_map.get(t)
+        sec = sector_map.get(t) or fetched.get(t)
         if sec is None:
             logger.warning("No sector for %s; assigning 'Other'", t)
             sec = "Other"
@@ -298,6 +415,9 @@ def load_all(cfg: DataConfig = DATA,
     else:
         prices = load_prices(tickers, cfg)
         prices, issues = clean_prices(prices, cfg)
+        prices, fx_log = convert_to_base_currency(prices, cfg.base_currency, cfg=cfg)
+        prices = prices.dropna(how="any")
+        issues.update({f"_fx_{k}": v for k, v in fx_log.items()})
         shares = load_shares_outstanding(prices.columns)
 
     returns = compute_returns(prices)

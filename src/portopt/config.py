@@ -61,6 +61,7 @@ class DataConfig:
     end: Optional[str] = None          # None -> today
     cache_dir: str = "data/cache"
     fred_series: str = "DGS3MO"        # 3-month T-bill, constant maturity, %
+    base_currency: str = "USD"         # all prices converted to this before use
     trading_days: int = 252
     min_history_fraction: float = 0.98  # drop tickers with < 98% of the dates
 

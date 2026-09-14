@@ -344,9 +344,9 @@ Six projects that build one capability each and share a reporting layer. Complet
 | 3 | **Portfolio Optimisation: Mean-Variance, Black-Litterman and Robust Methods** (this repo) | What weights to hold: Markowitz and its fixes, tested out of sample net of costs |
 | 4 | [Risk Parity and Hierarchical Risk Parity](https://github.com/jainammehta1215/risk-parity-hrp) | Allocating by risk instead of capital; clustering instead of matrix inversion |
 | 5 | [Macro Nowcasting and Recession Probability](https://github.com/jainammehta1215/macro-nowcasting) | The regime the allocation lives in: yield-curve probit, dynamic factor model, real-time vintages |
-| 6 | Yield Curve Construction and Fixed-Income Immunisation | The rates side: bootstrapping, Nelson-Siegel, key-rate durations, liability matching |
+| 6 | [Yield Curve Construction and Fixed-Income Immunisation](https://github.com/jainammehta1215/yield-curve-immunisation) | The rates side: bootstrapping, Nelson-Siegel, key-rate durations, liability matching |
 
-A master repository will consolidate all six with a shared core once the track is complete.
+The master repository [asset-allocation-track](https://github.com/jainammehta1215/asset-allocation-track) consolidates all six.
 
 ## References
 

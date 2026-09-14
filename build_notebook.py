@@ -491,22 +491,7 @@ have typically shown on this universe and will need editing after each run.
 """)
 
 md(r"""
-## 14. Résumé description
-
-> **Portfolio Optimisation Research Framework** — Python, cvxpy, pandas, scikit-learn
-> Built a production-style portfolio construction and backtesting library implementing
-> Markowitz mean-variance, Ledoit-Wolf and constant-correlation covariance shrinkage, Michaud
-> resampled frontiers, Black-Litterman with market-implied equilibrium and systematic views,
-> equal-risk-contribution and minimum-variance portfolios under position, sector and turnover
-> constraints. Compiled all convex programs once via cvxpy DPP (2 ms re-solves), enabling
-> 20,000+ optimisations in a 15-year monthly walk-forward backtest with drift, turnover
-> accounting and transaction costs. Quantified estimation-error sensitivity with a
-> standard-error perturbation study and tested Sharpe differences against a 1/N benchmark;
-> found no statistically significant out-of-sample outperformance after costs, consistent with
-> the published literature. 17 unit tests; point-in-time market-cap construction to avoid
-> lookahead.
-
-## 15. Potential upgrades
+## 14. Potential upgrades
 
 | Upgrade | Why it matters |
 |---|---|
